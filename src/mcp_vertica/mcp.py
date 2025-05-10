@@ -203,7 +203,7 @@ async def stream_query(
 
 @mcp.tool()
 async def copy_data(
-    ctx: Context, schema: str, table: str, data: List[List[Any]],  
+    ctx: Context, schema: str, table: str, data: List[List[Any]],
 ) -> str:
     """Copy data into a Vertica table using COPY command.
 
@@ -287,7 +287,7 @@ async def get_table_structure(
         return "Error: No database connection manager available"
 
     query = """
-    SELECT 
+    SELECT
         column_name,
         data_type,
         character_maximum_length,
@@ -295,8 +295,8 @@ async def get_table_structure(
         numeric_scale,
         is_nullable,
         column_default
-    FROM v_catalog.columns 
-    WHERE table_schema = %s 
+    FROM v_catalog.columns
+    WHERE table_schema = %s
     AND table_name = %s
     ORDER BY ordinal_position;
     """
@@ -304,22 +304,22 @@ async def get_table_structure(
     conn = None
     cursor = None
     try:
-        conn = manager.get_connection(database)
+        conn = manager.get_connection()
         cursor = conn.cursor()
         cursor.execute(query, (schema, table_name))
         columns = cursor.fetchall()
-        
+
         if not columns:
             return f"No table found: {schema}.{table_name}"
 
         # Get constraints
         cursor.execute("""
-            SELECT 
+            SELECT
                 constraint_name,
                 constraint_type,
                 column_name
             FROM v_catalog.constraint_columns
-            WHERE table_schema = %s 
+            WHERE table_schema = %s
             AND table_name = %s;
         """, (schema, table_name))
         constraints = cursor.fetchall()
@@ -382,12 +382,12 @@ async def list_indexes(
         return "Error: No database connection manager available"
 
     query = """
-    SELECT 
+    SELECT
         projection_name,
         is_super_projection,
         anchor_table_name
     FROM v_catalog.projections
-    WHERE projection_schema = %s 
+    WHERE projection_schema = %s
     AND anchor_table_name = %s
     ORDER BY projection_name;
     """
@@ -395,11 +395,11 @@ async def list_indexes(
     conn = None
     cursor = None
     try:
-        conn = manager.get_connection(database)
+        conn = manager.get_connection()
         cursor = conn.cursor()
         cursor.execute(query, (schema, table_name))
         indexes = cursor.fetchall()
-        
+
         if not indexes:
             return f"No projections found for table: {schema}.{table_name}"
 
@@ -445,7 +445,7 @@ async def list_views(
         return "Error: No database connection manager available"
 
     query = """
-    SELECT 
+    SELECT
         table_name,
         view_definition
     FROM v_catalog.views
@@ -456,11 +456,11 @@ async def list_views(
     conn = None
     cursor = None
     try:
-        conn = manager.get_connection(database)
+        conn = manager.get_connection()
         cursor = conn.cursor()
         cursor.execute(query, (schema,))
         views = cursor.fetchall()
-        
+
         if not views:
             return f"No views found in schema: {schema}"
 

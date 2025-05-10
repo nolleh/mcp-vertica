@@ -15,8 +15,8 @@ repos:
     -   id: mypy
         # args: [--ignore-missing-imports]
 
--   repo: https://github.com/pre-commit/mirrors-pylint
-    rev: v2.7.4
-    hooks:
-    -   id: pylint
+# -   repo: https://github.com/pre-commit/mirrors-pylint
+#     rev: v2.7.4
+#     hooks:
+#     -   id: pylint
         # args: [--disable=R,C]

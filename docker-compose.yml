@@ -23,4 +23,4 @@ services:
 
 volumes:
   vertica_data:
-    driver: local 
+    driver: local

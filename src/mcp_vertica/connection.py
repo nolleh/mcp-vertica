@@ -49,7 +49,7 @@ class VerticaConfig:
     allow_delete: bool = False
     allow_ddl: bool = False
     # Schema-specific permissions
-    schema_permissions: Dict[str, SchemaPermissions] = None
+    schema_permissions: Optional[Dict[str, SchemaPermissions]] = None
 
     def __post_init__(self):
         if self.schema_permissions is None:
@@ -108,7 +108,7 @@ class VerticaConnectionPool:
             "user": self.config.user,
             "password": self.config.password,
         }
-        
+
         if self.config.ssl:
             config["ssl"] = True
             config["ssl_reject_unauthorized"] = self.config.ssl_reject_unauthorized
@@ -203,8 +203,9 @@ class VerticaConnectionManager:
             return False
 
         # Get schema permissions
-        schema_perms = self.config.schema_permissions.get(database)
-        
+        schema_permissions = self.config.schema_permissions or {}
+        schema_perms = schema_permissions.get(database)
+
         # Check schema-specific permissions first
         if schema_perms:
             if operation == OperationType.INSERT:
