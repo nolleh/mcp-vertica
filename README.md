@@ -133,7 +133,7 @@ SCHEMA_DDL_PERMISSIONS=schema1:true,schema2:false
 ## Installation
 
 ```bash
-uvx run mcp-vertica
+uvx mcp-vertica
 ```
 
 ## License
