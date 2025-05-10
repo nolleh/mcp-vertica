@@ -36,7 +36,6 @@ Create or edit the file your mcp client config file with the following content:
 
 - Connection pooling with configurable limits
 - SSL/TLS support
-- Multi-database mode support
 - Automatic connection cleanup
 - Connection timeout handling
 
@@ -45,7 +44,6 @@ Create or edit the file your mcp client config file with the following content:
 - Execute SQL queries
 - Stream large query results in batches
 - Copy data operations
-- Database switching
 - Transaction management
 
 ### Schema Management
