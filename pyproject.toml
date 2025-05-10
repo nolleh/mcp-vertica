@@ -1,0 +1,22 @@
+[project]
+name = "mcp-vertica"
+version = "0.1.0"
+description = "Vertica MCP using Fast MCP"
+requires-python = ">=3.10"
+dependencies = [
+    "vertica-python>=1.0.0",
+    "click>=8.0.0",
+    "python-dotenv>=1.0.0",
+    "mcp[cli]"
+]
+
+[[project.authors]]
+name = "nolleh"
+email = "nolleh7707@gmail.com"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+mcp-vertica = "mcp_vertica:cli"

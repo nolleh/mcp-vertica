@@ -1,0 +1,8 @@
+## Vim
+*.swp
+
+## Python
+.venv
+.env
+__pycache__
+
