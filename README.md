@@ -180,7 +180,7 @@ uvx mcp-vertica \
   --env-file .env
 ```
 
-### Docker Compose Example
+### For Testing, VerticaDB Docker Compose Example
 
 ```yaml
 version: "3.8"
