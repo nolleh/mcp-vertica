@@ -8,6 +8,8 @@ from .connection import VerticaConnectionManager, VerticaConfig, OperationType
 from starlette.applications import Starlette
 from starlette.routing import Mount
 import uvicorn
+import csv
+import io
 
 # Configure logging
 logger = logging.getLogger("mcp-vertica")
@@ -28,20 +30,12 @@ def extract_operation_type(query: str) -> OperationType | None:
     return None
 
 
-def extract_database_from_query(query: str) -> str | None:
-    """Extract database name from a SQL query."""
-    # Case 1: USE database statement
-    use_match = re.search(r"USE\s+`?([a-zA-Z0-9_]+)`?", query, re.IGNORECASE)
-    if use_match:
-        return use_match.group(1)
-
-    # Case 2: database.table notation
-    db_table_match = re.search(
-        r"`?([a-zA-Z0-9_]+)`?\.`?[a-zA-Z0-9_]+`?", query, re.IGNORECASE
-    )
-    if db_table_match:
-        return db_table_match.group(1)
-
+def extract_schema_from_query(query: str) -> str | None:
+    """Extract schema name from a SQL query."""
+    # database.table 또는 schema.table 패턴에서 schema 추출
+    match = re.search(r"([a-zA-Z0-9_]+)\.[a-zA-Z0-9_]+", query)
+    if match:
+        return match.group(1)
     return None
 
 
@@ -97,40 +91,6 @@ async def run_sse(port: int = 8000) -> None:
 
 
 @mcp.tool()
-async def switch_database(
-    ctx: Context,
-    database: str,
-) -> str:
-    """Switch to a different database.
-
-    Args:
-        ctx: FastMCP context for progress reporting and logging
-        database: Name of the database to switch to
-
-    Returns:
-        Status message indicating success or failure
-    """
-    await ctx.info(f"Switching to database: {database}")
-
-    # Get connection manager from context
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
-    if not manager:
-        await ctx.error("No database connection manager available")
-        return "Error: No database connection manager available"
-
-    try:
-        # Test the connection to the new database
-        conn = manager.get_connection(database)
-        manager.release_connection(conn)
-        await ctx.info(f"Successfully switched to database: {database}")
-        return f"Successfully switched to database: {database}"
-    except Exception as e:
-        error_msg = f"Error switching database: {str(e)}"
-        await ctx.error(error_msg)
-        return error_msg
-
-
-@mcp.tool()
 async def execute_query(ctx: Context, query: str, database: str | None = None) -> str:
     """Execute a SQL query and return the results.
 
@@ -150,24 +110,19 @@ async def execute_query(ctx: Context, query: str, database: str | None = None) -
         await ctx.error("No database connection manager available")
         return "Error: No database connection manager available"
 
-    # Extract database from query if not provided
-    if not database:
-        database = extract_database_from_query(query)
-        if not database and manager.is_multi_db_mode:
-            await ctx.error("No database specified in query or parameter")
-            return "Error: No database specified in query or parameter"
-
+    # Extract schema from query if not provided
+    schema = extract_schema_from_query(query)
     # Check operation permissions
     operation = extract_operation_type(query)
-    if operation and not manager.is_operation_allowed(database or "default", operation):
-        error_msg = f"Operation {operation.name} not allowed for database {database}"
+    if operation and not manager.is_operation_allowed(schema or "default", operation):
+        error_msg = f"Operation {operation.name} not allowed for schema {schema}"
         await ctx.error(error_msg)
         return error_msg
 
     conn = None
     cursor = None
     try:
-        conn = manager.get_connection(database)
+        conn = manager.get_connection()  # Always use default DB connection
         cursor = conn.cursor()
         cursor.execute(query)
         results = cursor.fetchall()
@@ -186,7 +141,7 @@ async def execute_query(ctx: Context, query: str, database: str | None = None) -
 
 @mcp.tool()
 async def stream_query(
-    ctx: Context, query: str, database: str | None = None, batch_size: int = 1000
+    ctx: Context, query: str, batch_size: int = 1000
 ) -> AsyncGenerator[str, None]:
     """Execute a SQL query and stream the results in batches.
 
@@ -208,18 +163,12 @@ async def stream_query(
         yield "Error: No database connection manager available"
         return
 
-    # Extract database from query if not provided
-    if not database:
-        database = extract_database_from_query(query)
-        if not database and manager.is_multi_db_mode:
-            await ctx.error("No database specified in query or parameter")
-            yield "Error: No database specified in query or parameter"
-            return
-
+    # Extract schema from query if not provided
+    schema = extract_schema_from_query(query)
     # Check operation permissions
     operation = extract_operation_type(query)
-    if operation and not manager.is_operation_allowed(database or "default", operation):
-        error_msg = f"Operation {operation.name} not allowed for database {database}"
+    if operation and not manager.is_operation_allowed(schema or "default", operation):
+        error_msg = f"Operation {operation.name} not allowed for schema {schema}"
         await ctx.error(error_msg)
         yield error_msg
         return
@@ -227,7 +176,7 @@ async def stream_query(
     conn = None
     cursor = None
     try:
-        conn = manager.get_connection(database)
+        conn = manager.get_connection()  # Always use default DB connection
         cursor = conn.cursor()
         cursor.execute(query)
 
@@ -254,15 +203,15 @@ async def stream_query(
 
 @mcp.tool()
 async def copy_data(
-    ctx: Context, table: str, data: List[List[Any]], database: str | None = None
+    ctx: Context, schema: str, table: str, data: List[List[Any]],  
 ) -> str:
     """Copy data into a Vertica table using COPY command.
 
     Args:
         ctx: FastMCP context for progress reporting and logging
+        schema: vertica schema to execute the copy against
         table: Target table name
         data: List of rows to insert
-        database: Optional database name to execute the copy against
 
     Returns:
         Status message indicating success or failure
@@ -276,20 +225,26 @@ async def copy_data(
         return "Error: No database connection manager available"
 
     # Check operation permissions
-    if not manager.is_operation_allowed(database or "default", OperationType.INSERT):
-        error_msg = f"INSERT operation not allowed for database {database}"
+    if not manager.is_operation_allowed(schema, OperationType.INSERT):
+        error_msg = f"INSERT operation not allowed for database {schema}"
         await ctx.error(error_msg)
         return error_msg
 
     conn = None
     cursor = None
     try:
-        conn = manager.get_connection(database)
+        conn = manager.get_connection()
         cursor = conn.cursor()
 
+        # Convert data to CSV string
+        output = io.StringIO()
+        writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+        writer.writerows(data)
+        output.seek(0)
+
         # Create COPY command
-        copy_query = f"COPY {table} FROM STDIN"
-        cursor.copy(copy_query, data)
+        copy_query = f"""COPY {table} FROM STDIN DELIMITER ',' ENCLOSED BY '\"'"""
+        cursor.copy(copy_query, output.getvalue())
         conn.commit()
 
         success_msg = f"Successfully copied {len(data)} rows to {table}"
@@ -428,14 +383,13 @@ async def list_indexes(
 
     query = """
     SELECT 
-        index_name,
-        index_type,
-        is_unique,
-        column_name
-    FROM v_catalog.indices
-    WHERE table_schema = %s 
-    AND table_name = %s
-    ORDER BY index_name;
+        projection_name,
+        is_super_projection,
+        anchor_table_name
+    FROM v_catalog.projections
+    WHERE projection_schema = %s 
+    AND anchor_table_name = %s
+    ORDER BY projection_name;
     """
 
     conn = None
@@ -447,20 +401,13 @@ async def list_indexes(
         indexes = cursor.fetchall()
         
         if not indexes:
-            return f"No indexes found for table: {schema}.{table_name}"
+            return f"No projections found for table: {schema}.{table_name}"
 
-        result = f"Indexes for {schema}.{table_name}:\n\n"
-        current_index = None
-        for idx in indexes:
-            if current_index != idx[0]:
-                current_index = idx[0]
-                result += f"\n{idx[0]} ({idx[1]})"
-                if idx[2]:
-                    result += " UNIQUE"
-                result += f"\n  Columns: {idx[3]}"
-            else:
-                result += f", {idx[3]}"
-
+        # Format the output for projections
+        result = f"Projections for {schema}.{table_name}:\n\n"
+        for proj in indexes:
+            # proj[0]: projection_name, proj[1]: is_super_projection, proj[2]: anchor_table_name
+            result += f"- {proj[0]} (Super Projection: {proj[1]}) [Table: {proj[2]}]\n"
         return result
 
     except Exception as e:
@@ -499,11 +446,11 @@ async def list_views(
 
     query = """
     SELECT 
-        view_name,
+        table_name,
         view_definition
     FROM v_catalog.views
     WHERE table_schema = %s
-    ORDER BY view_name;
+    ORDER BY table_name;
     """
 
     conn = None

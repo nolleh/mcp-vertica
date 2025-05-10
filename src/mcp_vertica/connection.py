@@ -185,23 +185,11 @@ class VerticaConnectionManager:
         self.is_multi_db_mode = not config.database
         self.pool = VerticaConnectionPool(config)
 
-    def get_connection(self, database: Optional[str] = None) -> vertica_python.Connection:
-        """Get a connection from the pool, optionally switching to a different database."""
+    def get_connection(self) -> vertica_python.Connection:
+        """Get a connection from the pool. Vertica does not support runtime database switching."""
         if not self.pool:
             raise Exception("Connection pool not initialized")
-
         conn = self.pool.get_connection()
-        
-        # If a different database is requested, switch to it
-        if database and database != self.config.database:
-            try:
-                cursor = conn.cursor()
-                cursor.execute(f"USE {database}")
-                cursor.close()
-            except Exception as e:
-                self.pool.release_connection(conn)
-                raise Exception(f"Failed to switch to database {database}: {str(e)}")
-
         return conn
 
     def release_connection(self, conn: vertica_python.Connection):

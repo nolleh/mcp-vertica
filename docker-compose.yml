@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  vertica:
+    # image: vertica/vertica-ce:11.1.0-0
+    image: vertica/vertica-ce:latest
+    platform: linux/amd64
+    container_name: vertica-ce
+    environment:
+      VERTICA_MEMDEBUG: 2
+    ports:
+      - "5433:5433"
+      - "5444:5444"
+    volumes:
+      - vertica_data:/home/dbadmin/VMart
+    healthcheck:
+      test: ["CMD", "/opt/vertica/bin/vsql", "-h", "localhost", "-d", "VMart", "-U", "dbadmin", "-c", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  vertica_data:
+    driver: local 
