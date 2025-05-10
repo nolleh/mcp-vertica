@@ -2,6 +2,34 @@
 
 A Vertica MCP(model-context-protocol) Server
 
+### Example: MCP Server Setting
+
+Create or edit the file your mcp client config file with the following content:
+
+```json
+{
+  "mcpServers": {
+    "vertica": {
+      "command": "uvx",
+      "args": [
+        "mcp-vertica",
+        "--host=localhost",
+        "--db-port=5433",
+        "--database=VMart",
+        "--user=dbadmin",
+        "--password=",
+        "--connection-limit=10"
+      ]
+    }
+  }
+}
+```
+
+> [!Note]
+>
+> - For boolean flags like `--ssl` or `--ssl-reject-unauthorized`, simply add the flag (e.g., `"--ssl"`) to enable it, or omit it to disable.
+> - For an empty password, use an empty string as shown above.
+
 ## Features
 
 ### Database Connection Management
@@ -121,14 +149,12 @@ When running Vertica with Docker Compose, you can run the MCP server as follows:
 ### 1. Run with Direct Parameters
 
 ```bash
-uv run mcp-vertica \
-  --transport sse \
-  --port 8000 \
+uvx mcp-vertica \
   --host localhost \
   --db-port 5433 \
-  --database test_db \
-  --user test_user \
-  --password test_password \
+  --database VMart \
+  --user dbadmin \
+  --password "" \
   --connection-limit 10
 ```
 
@@ -150,7 +176,7 @@ VERTICA_SSL_REJECT_UNAUTHORIZED=true
 Then run with .env
 
 ```bash
-uvx run mcp-vertica \
+uvx mcp-vertica \
   --env-file .env
 ```
 

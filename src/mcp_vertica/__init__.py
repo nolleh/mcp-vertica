@@ -15,7 +15,7 @@ from .connection import (
     VERTICA_SSL_REJECT_UNAUTHORIZED,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 def main(
     verbose: int,
