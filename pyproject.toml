@@ -2,7 +2,7 @@
 name = "mcp-vertica"
 version = "0.1.0"
 description = "Vertica MCP using Fast MCP"
-requires-python = "==3.12"
+requires-python = ">=3.12"
 dependencies = [
     "vertica-python>=1.0.0",
     "click>=8.0.0",

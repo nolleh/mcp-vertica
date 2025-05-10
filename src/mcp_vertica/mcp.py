@@ -91,7 +91,7 @@ async def run_sse(port: int = 8000) -> None:
 
 
 @mcp.tool()
-async def execute_query(ctx: Context, query: str, database: str | None = None) -> str:
+async def execute_query(ctx: Context, query: str) -> str:
     """Execute a SQL query and return the results.
 
     Args:
@@ -148,7 +148,6 @@ async def stream_query(
     Args:
         ctx: FastMCP context for progress reporting and logging
         query: SQL query to execute
-        database: Optional database name to execute the query against
         batch_size: Number of rows to fetch at once
 
     Yields:
@@ -265,7 +264,6 @@ async def copy_data(
 async def get_table_structure(
     ctx: Context,
     table_name: str,
-    database: str | None = None,
     schema: str = "public"
 ) -> str:
     """Get the structure of a table including columns, data types, and constraints.
@@ -273,7 +271,6 @@ async def get_table_structure(
     Args:
         ctx: FastMCP context for progress reporting and logging
         table_name: Name of the table to inspect
-        database: Optional database name
         schema: Schema name (default: public)
 
     Returns:
@@ -360,7 +357,6 @@ async def get_table_structure(
 async def list_indexes(
     ctx: Context,
     table_name: str,
-    database: str | None = None,
     schema: str = "public"
 ) -> str:
     """List all indexes for a specific table.
@@ -368,7 +364,6 @@ async def list_indexes(
     Args:
         ctx: FastMCP context for progress reporting and logging
         table_name: Name of the table to inspect
-        database: Optional database name
         schema: Schema name (default: public)
 
     Returns:
@@ -424,14 +419,12 @@ async def list_indexes(
 @mcp.tool()
 async def list_views(
     ctx: Context,
-    database: str | None = None,
     schema: str = "public"
 ) -> str:
     """List all views in a schema.
 
     Args:
         ctx: FastMCP context for progress reporting and logging
-        database: Optional database name
         schema: Schema name (default: public)
 
     Returns:
