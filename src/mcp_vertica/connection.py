@@ -97,7 +97,10 @@ class VerticaConnectionPool:
         self.pool: Queue = Queue(maxsize=config.connection_limit)
         self.active_connections = 0
         self.lock = threading.Lock()
-        self._initialize_pool()
+        try:
+            self._initialize_pool()
+        except:
+            pass
 
     def _get_connection_config(self) -> Dict[str, Any]:
         """Get connection configuration with SSL settings if enabled."""
@@ -148,6 +151,7 @@ class VerticaConnectionPool:
                 return conn
             except Exception as e:
                 logger.error(f"Failed to get connection from pool: {str(e)}")
+                self._initialize_pool()
                 raise
 
     def release_connection(self, conn: vertica_python.Connection):
