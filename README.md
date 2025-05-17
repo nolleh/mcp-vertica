@@ -1,4 +1,5 @@
 # MCP Vertica
+[![smithery badge](https://smithery.ai/badge/@nolleh/mcp-vertica)](https://smithery.ai/server/@nolleh/mcp-vertica)
 
 A Vertica MCP(model-context-protocol) Server
 
@@ -132,6 +133,15 @@ SCHEMA_DDL_PERMISSIONS=schema1:true,schema2:false
 
 ## Installation
 
+### Installing via Smithery
+
+To install Vertica Database Connector for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@nolleh/mcp-vertica):
+
+```bash
+npx -y @smithery/cli install @nolleh/mcp-vertica --client claude
+```
+
+### Installing Manually
 ```bash
 uvx mcp-vertica
 ```

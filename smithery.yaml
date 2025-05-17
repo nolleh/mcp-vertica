@@ -1,0 +1,77 @@
+# Smithery configuration file: https://smithery.ai/docs/build/project-config
+
+startCommand:
+  type: stdio
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => {
+      const args = [];
+      // host
+      if (config.host) args.push(`--host=${config.host}`);
+      // dbPort
+      if (config.dbPort) args.push(`--db-port=${config.dbPort}`);
+      // database
+      if (config.database) args.push(`--database=${config.database}`);
+      // user
+      if (config.user) args.push(`--user=${config.user}`);
+      // password
+      if (config.password !== undefined) args.push(`--password=${config.password}`);
+      // connection-limit
+      if (config.connectionLimit !== undefined) args.push(`--connection-limit=${config.connectionLimit}`);
+      // ssl
+      if (config.ssl) args.push(`--ssl`);
+      // ssl-reject-unauthorized
+      if (config.sslRejectUnauthorized) args.push(`--ssl-reject-unauthorized`);
+      return {
+        command: "mcp-vertica",
+        args,
+        env: {}
+      };
+    }
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required:
+      - host
+      - database
+      - user
+    properties:
+      host:
+        type: string
+        description: Vertica host
+      dbPort:
+        type: number
+        default: 5433
+        description: Vertica port
+      database:
+        type: string
+        description: Vertica database
+      user:
+        type: string
+        description: Vertica user
+      password:
+        type: string
+        default: ""
+        description: Vertica password
+      connectionLimit:
+        type: number
+        default: 10
+        description: Connection limit
+      ssl:
+        type: boolean
+        default: false
+        description: Enable SSL
+      sslRejectUnauthorized:
+        type: boolean
+        default: true
+        description: Reject unauthorized SSL certs
+  exampleConfig:
+    host: localhost
+    dbPort: 5433
+    database: VMart
+    user: dbadmin
+    password: ""
+    connectionLimit: 10
+    ssl: false
+    sslRejectUnauthorized: true
