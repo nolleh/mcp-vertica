@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/nolleh-mcp-vertica-badge.png)](https://mseep.ai/app/nolleh-mcp-vertica)
+
 # MCP Vertica
 
 A Vertica MCP(model-context-protocol) Server
