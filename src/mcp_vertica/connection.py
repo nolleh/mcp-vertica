@@ -115,7 +115,8 @@ class VerticaConnectionPool:
         if self.config.ssl:
             config["ssl"] = True
             config["ssl_reject_unauthorized"] = self.config.ssl_reject_unauthorized
-
+        else:
+            config["tlsmode"] = "disable"
         logger.debug("Connection config: %s", self._get_safe_config(config))
         return config
 

@@ -14,7 +14,6 @@ import io
 # Configure logging
 logger = logging.getLogger("mcp-vertica")
 
-
 def extract_operation_type(query: str) -> OperationType | None:
     """Extract the operation type from a SQL query."""
     query = query.strip().upper()

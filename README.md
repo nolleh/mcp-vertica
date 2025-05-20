@@ -1,4 +1,7 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/nolleh-mcp-vertica-badge.png)](https://mseep.ai/app/nolleh-mcp-vertica)
+
 # MCP Vertica
+
 [![smithery badge](https://smithery.ai/badge/@nolleh/mcp-vertica)](https://smithery.ai/server/@nolleh/mcp-vertica)
 
 A Vertica MCP(model-context-protocol) Server
@@ -21,6 +24,29 @@ Create or edit the file your mcp client config file with the following content:
         "--password=",
         "--connection-limit=10"
       ]
+    }
+  }
+}
+```
+
+Or with env
+
+```json
+{
+  "mcpServers": {
+    "vertica": {
+      "command": "uvx",
+      "args": ["mcp-vertica"],
+      "env": {
+        "VERTICA_HOST":"localhost",
+        "VERTICA_PORT":5433,
+        "VERTICA_DATABASE":"VMart",
+        "VERTICA_USER":"dbadmin",
+        "VERTICA_PASSWORD":"",
+        "VERTICA_CONNECTION_LIMIT":10,
+        "VERTICA_SSL":false,
+        "VERTICA_SSL_REJECT_UNAUTHORIZED":true
+      }
     }
   }
 }
@@ -142,6 +168,7 @@ npx -y @smithery/cli install @nolleh/mcp-vertica --client claude
 ```
 
 ### Installing Manually
+
 ```bash
 uvx mcp-vertica
 ```
@@ -168,7 +195,7 @@ uvx mcp-vertica \
 
 ### 2. Run with Environment Variables
 
-Create a `.env` file with the following content:
+create a `.env` file with the following content:
 
 ```env
 VERTICA_HOST=localhost

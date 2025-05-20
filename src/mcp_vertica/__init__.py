@@ -1,3 +1,12 @@
+import warnings
+
+warnings.filterwarnings(
+    "ignore",
+    message='Field name "schema" in ".*" shadows an attribute in parent "ArgModelBase"',
+    category=UserWarning,
+    module="pydantic._internal._fields"
+)
+
 import asyncio
 import logging
 import os
@@ -15,7 +24,33 @@ from .connection import (
     VERTICA_SSL_REJECT_UNAUTHORIZED,
 )
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
+
+logger = logging.getLogger("mcp-vertica")
+
+def setup_logger(verbose: int) -> logging.Logger:
+    logger = logging.getLogger("mcp-vertica")
+    logger.propagate = False
+    level = logging.CRITICAL
+    if not logger.hasHandlers():
+        handler = logging.StreamHandler()
+        if verbose == 0:
+            handler.setLevel(logging.CRITICAL)
+            logger.setLevel(logging.CRITICAL)
+        elif verbose == 1:
+            handler.setLevel(logging.INFO)
+            logger.setLevel(logging.INFO)
+            level = logging.INFO
+        else:
+            handler.setLevel(logging.DEBUG)
+            logger.setLevel(logging.DEBUG)
+            level = logging.DEBUG
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+    logging.basicConfig(level=level, force=True)
+    return logger
 
 def main(
     verbose: int,
@@ -32,23 +67,9 @@ def main(
     ssl_reject_unauthorized: bool | None,
 ) -> None:
     """MCP Vertica Server - Vertica functionality for MCP"""
-    # Configure logging based on verbosity
-    logging_level = logging.WARNING
-    if verbose == 1:
-        logging_level = logging.INFO
-    elif verbose == 2:
-        logging_level = logging.DEBUG
-    elif verbose >= 3:
-        logging_level = logging.DEBUG
-        # Enable debug logging for all loggers
-        for logger_name in ["mcp-vertica", "uvicorn", "starlette"]:
-            logging.getLogger(logger_name).setLevel(logging.DEBUG)
 
-    # Set up logging
-    logging.basicConfig(
-        level=logging_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    # Configure logging based on verbosity
+    setup_logger(verbose)
 
     # Set default environment variables
     os.environ.setdefault(VERTICA_CONNECTION_LIMIT, "10")
