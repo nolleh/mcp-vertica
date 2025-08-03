@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from mcp.server.fastmcp import FastMCP, Context
-from typing import Any, AsyncGenerator, List
+from typing import Any, List
 import logging
 import re
 from .connection import VerticaConnectionManager, VerticaConfig, OperationType
@@ -141,25 +141,24 @@ async def execute_query(ctx: Context, query: str) -> str:
 @mcp.tool()
 async def stream_query(
     ctx: Context, query: str, batch_size: int = 1000
-) -> AsyncGenerator[str, None]:
-    """Execute a SQL query and stream the results in batches.
+) -> str:
+    """Execute a SQL query and return the results in batches as a single string.
 
     Args:
         ctx: FastMCP context for progress reporting and logging
         query: SQL query to execute
         batch_size: Number of rows to fetch at once
 
-    Yields:
-        Batches of query results as strings
+    Returns:
+        Query results as a concatenated string
     """
-    await ctx.info(f"Streaming query: {query}")
+    await ctx.info(f"Executing query with batching: {query}")
 
     # Get connection manager from context
     manager = ctx.request_context.lifespan_context.get("vertica_manager")
     if not manager:
         await ctx.error("No database connection manager available")
-        yield "Error: No database connection manager available"
-        return
+        return "Error: No database connection manager available"
 
     # Extract schema from query if not provided
     schema = extract_schema_from_query(query)
@@ -168,8 +167,7 @@ async def stream_query(
     if operation and not manager.is_operation_allowed(schema or "default", operation):
         error_msg = f"Operation {operation.name} not allowed for schema {schema}"
         await ctx.error(error_msg)
-        yield error_msg
-        return
+        return error_msg
 
     conn = None
     cursor = None
@@ -178,6 +176,7 @@ async def stream_query(
         cursor = conn.cursor()
         cursor.execute(query)
 
+        all_results = []
         total_rows = 0
         while True:
             batch = cursor.fetchmany(batch_size)
@@ -185,13 +184,14 @@ async def stream_query(
                 break
             total_rows += len(batch)
             await ctx.debug(f"Fetched {total_rows} rows")
-            yield str(batch)
+            all_results.extend(batch)
 
-        await ctx.info(f"Query streaming completed, total rows: {total_rows}")
+        await ctx.info(f"Query completed, total rows: {total_rows}")
+        return str(all_results)
     except Exception as e:
-        error_msg = f"Error streaming query: {str(e)}"
+        error_msg = f"Error executing query: {str(e)}"
         await ctx.error(error_msg)
-        yield error_msg
+        return error_msg
     finally:
         if cursor:
             cursor.close()

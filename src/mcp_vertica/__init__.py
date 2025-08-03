@@ -1,4 +1,5 @@
 import warnings
+import re
 
 warnings.filterwarnings(
     "ignore",
@@ -52,6 +53,17 @@ def setup_logger(verbose: int) -> logging.Logger:
     logging.basicConfig(level=level, force=True)
     return logger
 
+def validate_port(ctx, param, value):
+    if value is not None and not (1024 <= value <= 65535):
+        raise click.BadParameter(f"{param.name} must be between 1024 and 65535")
+    return value
+
+def validate_host(ctx, param, value):
+    if value is not None:
+        if not re.match(r"^[\w\.-]+$", value):
+            raise click.BadParameter(f"{param.name} must be a valid hostname or IP address")
+    return value
+
 def main(
     verbose: int,
     env_file: str | None,
@@ -85,15 +97,15 @@ def main(
         load_dotenv()
 
     # Set environment variables from command line arguments if provided
-    if host:
+    if host is not None:
         os.environ[VERTICA_HOST] = host
     if db_port:
         os.environ[VERTICA_PORT] = str(db_port)
-    if database:
+    if database is not None:
         os.environ[VERTICA_DATABASE] = database
-    if user:
+    if user is not None:
         os.environ[VERTICA_USER] = user
-    if password:
+    if password is not None:
         os.environ[VERTICA_PASSWORD] = password
     if connection_limit:
         os.environ[VERTICA_CONNECTION_LIMIT] = str(connection_limit)
@@ -127,15 +139,18 @@ def main(
 @click.option(
     "--port",
     default=8000,
+    callback=validate_port,
     help="Port to listen on for SSE transport",
 )
 @click.option(
     "--host",
+    callback=validate_host,
     help="Vertica host",
 )
 @click.option(
     "--db-port",
     type=int,
+    callback=validate_port,
     help="Vertica port",
 )
 @click.option(
