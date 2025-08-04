@@ -6,6 +6,9 @@
 
 A Vertica MCP(model-context-protocol) Server
 
+> [!IMPORTANT]
+> If you have troubles to connect this mcp server, try to run `uv cache clean`, and then retry.
+
 ### Example: MCP Server Setting
 
 Create or edit the file your mcp client config file with the following content:
@@ -51,11 +54,11 @@ Or with env
   }
 }
 ```
-
 > [!Note]
 >
 > - For boolean flags like `--ssl` or `--ssl-reject-unauthorized`, simply add the flag (e.g., `"--ssl"`) to enable it, or omit it to disable.
 > - For an empty password, use an empty string as shown above.
+
 
 ## Features
 
