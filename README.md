@@ -13,6 +13,31 @@ A Vertica MCP(model-context-protocol) Server
 
 Create or edit the file your mcp client config file with the following content:
 
+#### UVX
+
+```json
+{
+  "mcpServers": {
+    "vertica": {
+      "command": "uvx",
+      "args": ["mcp-vertica"],
+      "env": {
+        "VERTICA_HOST": "localhost",
+        "VERTICA_PORT": 5433,
+        "VERTICA_DATABASE": "VMart",
+        "VERTICA_USER": "dbadmin",
+        "VERTICA_PASSWORD": "test_password",
+        "VERTICA_CONNECTION_LIMIT": 10,
+        "VERTICA_SSL": false,
+        "VERTICA_SSL_REJECT_UNAUTHORIZED": true
+      }
+    }
+  }
+}
+```
+
+Or with args
+
 ```json
 {
   "mcpServers": {
@@ -24,7 +49,7 @@ Create or edit the file your mcp client config file with the following content:
         "--db-port=5433",
         "--database=VMart",
         "--user=dbadmin",
-        "--password=",
+        "--password=test_password",
         "--connection-limit=10"
       ]
     }
@@ -32,33 +57,34 @@ Create or edit the file your mcp client config file with the following content:
 }
 ```
 
-Or with env
 
+#### Docker
 ```json
 {
   "mcpServers": {
     "vertica": {
-      "command": "uvx",
-      "args": ["mcp-vertica"],
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "nolleh/mcp-vertica"],
       "env": {
-        "VERTICA_HOST":"localhost",
-        "VERTICA_PORT":5433,
-        "VERTICA_DATABASE":"VMart",
-        "VERTICA_USER":"dbadmin",
-        "VERTICA_PASSWORD":"",
-        "VERTICA_CONNECTION_LIMIT":10,
-        "VERTICA_SSL":false,
-        "VERTICA_SSL_REJECT_UNAUTHORIZED":true
+        "VERTICA_HOST": "localhost",
+        "VERTICA_PORT": 5433,
+        "VERTICA_DATABASE": "VMart",
+        "VERTICA_USER": "dbadmin",
+        "VERTICA_PASSWORD": "test_password",
+        "VERTICA_CONNECTION_LIMIT": 10,
+        "VERTICA_SSL": false,
+        "VERTICA_SSL_REJECT_UNAUTHORIZED": true
       }
     }
   }
 }
 ```
+
+
 > [!Note]
 >
 > - For boolean flags like `--ssl` or `--ssl-reject-unauthorized`, simply add the flag (e.g., `"--ssl"`) to enable it, or omit it to disable.
 > - For an empty password, use an empty string as shown above.
-
 
 ## Features
 
@@ -172,53 +198,13 @@ npx -y @smithery/cli install @nolleh/mcp-vertica --client claude
 
 ### Installing Manually
 
-```bash
-uvx mcp-vertica
-```
+Open your favorite mcp client's config file, then configure with `uvx mcp-vertica`
 
-## License
+[Example: Mcp Server Setting](#example%3A-mcp-server-setting)
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## Development
 
-## Running in Docker Environment
-
-When running Vertica with Docker Compose, you can run the MCP server as follows:
-
-### 1. Run with Direct Parameters
-
-```bash
-uvx mcp-vertica \
-  --host localhost \
-  --db-port 5433 \
-  --database VMart \
-  --user dbadmin \
-  --password "" \
-  --connection-limit 10
-```
-
-### 2. Run with Environment Variables
-
-create a `.env` file with the following content:
-
-```env
-VERTICA_HOST=localhost
-VERTICA_PORT=5433
-VERTICA_DATABASE=test_db
-VERTICA_USER=test_user
-VERTICA_PASSWORD=test_password
-VERTICA_CONNECTION_LIMIT=10
-VERTICA_SSL=false
-VERTICA_SSL_REJECT_UNAUTHORIZED=true
-```
-
-Then run with .env
-
-```bash
-uvx mcp-vertica \
-  --env-file .env
-```
-
-### For Testing, VerticaDB Docker Compose Example
+#### Appendix: For Testing, VerticaDB Docker Compose Example
 
 ```yaml
 version: "3.8"
@@ -260,3 +246,10 @@ volumes:
   vertica_data:
     driver: local
 ```
+
+Then run server by following instruction [Example: Mcp Server Setting](#example%3A-mcp-server-setting),
+Then see everything works as fine
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
