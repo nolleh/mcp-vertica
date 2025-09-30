@@ -55,8 +55,12 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
         # Initialize Vertica connection manager
         manager = VerticaConnectionManager()
         config = VerticaConfig.from_env()
-        manager.initialize_default(config)
-        logger.info("Vertica connection manager initialized")
+        try:
+            manager.initialize_default(config)
+            logger.info("Vertica connection manager initialized")
+        except Exception as e:
+            # Log but don't fail - allow server to start for tool scanning
+            logger.warning(f"Failed to initialize Vertica connection (server will start anyway): {str(e)}")
         yield {"vertica_manager": manager}
     except Exception as e:
         logger.error(f"Failed to initialize server: {str(e)}")

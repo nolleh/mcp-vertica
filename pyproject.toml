@@ -1,6 +1,6 @@
 [project]
 name = "mcp-vertica"
-version = "0.1.5"
+version = "0.1.6"
 description = "Vertica MCP using Fast MCP"
 requires-python = ">=3.12"
 dependencies = [

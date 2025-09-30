@@ -97,9 +97,12 @@ class VerticaConnectionPool:
         self.pool: Queue = Queue(maxsize=config.connection_limit)
         self.active_connections = 0
         self.lock = threading.Lock()
+        self.initialized = False
         try:
             self._initialize_pool()
-        except:
+            self.initialized = True
+        except Exception as e:
+            logger.warning(f"Failed to initialize connection pool: {str(e)}")
             pass
 
     def _get_connection_config(self) -> Dict[str, Any]:
@@ -142,6 +145,9 @@ class VerticaConnectionPool:
 
     def get_connection(self) -> vertica_python.Connection:
         """Get a connection from the pool."""
+        if not self.initialized:
+            raise Exception("Connection pool not initialized. Please check your Vertica connection settings.")
+
         with self.lock:
             if self.active_connections >= self.config.connection_limit:
                 raise Exception("No available connections in the pool")
@@ -193,7 +199,7 @@ class VerticaConnectionManager:
     def get_connection(self) -> vertica_python.Connection:
         """Get a connection from the pool. Vertica does not support runtime database switching."""
         if not self.pool:
-            raise Exception("Connection pool not initialized")
+            raise Exception("Connection pool not initialized. Please configure Vertica connection settings.")
         conn = self.pool.get_connection()
         return conn
 
