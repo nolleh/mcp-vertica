@@ -76,7 +76,7 @@ def main(
     verbose: int,
     env_file: str | None,
     transport: str | None,
-    port: int,
+    port: int | None,
     host: str | None,
     db_port: int | None,
     database: str | None,
@@ -95,6 +95,11 @@ def main(
     if transport is None:
         transport = os.environ.get("TRANSPORT", "http")
     logger.info(f"Using transport mode: {transport}")
+
+    # Determine port: CLI option > PORT env var > default (8081)
+    if port is None:
+        port = int(os.environ.get("PORT", "8081"))
+    logger.info(f"Using port: {port}")
 
     # Set default environment variables
     os.environ.setdefault(VERTICA_CONNECTION_LIMIT, "10")
@@ -167,9 +172,10 @@ def main(
 )
 @click.option(
     "--port",
-    default=8081,
+    type=int,
+    default=None,
     callback=validate_port,
-    help="Port to listen on for SSE/HTTP transport",
+    help="Port to listen on for SSE/HTTP transport. If not specified, uses PORT env var or defaults to 8081",
 )
 @click.option(
     "--host",

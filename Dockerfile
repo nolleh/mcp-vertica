@@ -25,6 +25,6 @@ EXPOSE 8081
 # Reset the entrypoint
 ENTRYPOINT []
 
-# Run with HTTP transport
+# Run with HTTP transport using Python module directly
 # Smithery will set PORT env var and other configuration via environment variables
-CMD ["mcp-vertica", "--transport", "http"]
+CMD ["python", "-m", "mcp_vertica"]
