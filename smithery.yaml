@@ -1,5 +1,7 @@
 # Smithery configuration file: https://smithery.ai/docs/build/project-config
 
+transport: streamable_http
+
 startCommand:
   type: container
   commandFunction:
