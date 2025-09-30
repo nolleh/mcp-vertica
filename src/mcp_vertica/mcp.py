@@ -108,10 +108,12 @@ def run_http(port: int = 8000) -> None:
     app = mcp.streamable_http_app()
 
     # IMPORTANT: add CORS middleware for browser based clients
+    # Note: allow_credentials=False to work with allow_origins=["*"]
+    # This is required for Smithery scanner to work properly
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_credentials=True,
+        allow_credentials=False,  # Changed from True to work with wildcard origins
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
         expose_headers=["mcp-session-id", "mcp-protocol-version"],
