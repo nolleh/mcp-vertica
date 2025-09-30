@@ -48,23 +48,24 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
         server: FastMCP server instance
 
     Yields:
-        Dictionary containing the Vertica connection manager
+        Dictionary containing the Vertica connection manager (may be None if initialization failed)
     """
     manager = None
     try:
-        # Initialize Vertica connection manager
-        manager = VerticaConnectionManager()
-        config = VerticaConfig.from_env()
+        # Try to initialize Vertica connection manager
+        # This may fail if credentials are not provided (e.g., Smithery without test profile)
         try:
+            manager = VerticaConnectionManager()
+            config = VerticaConfig.from_env()
             manager.initialize_default(config)
-            logger.info("Vertica connection manager initialized")
+            logger.info("Vertica connection manager initialized successfully")
         except Exception as e:
             # Log but don't fail - allow server to start for tool scanning
             logger.warning(f"Failed to initialize Vertica connection (server will start anyway): {str(e)}")
+            logger.info("Server will start without database connection. Configure test profile to use tools.")
+
+        # Always yield, even if manager initialization failed
         yield {"vertica_manager": manager}
-    except Exception as e:
-        logger.error(f"Failed to initialize server: {str(e)}")
-        raise
     finally:
         # Cleanup resources
         if manager:
