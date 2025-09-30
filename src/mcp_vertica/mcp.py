@@ -4,9 +4,11 @@ from mcp.server.fastmcp import FastMCP, Context
 from typing import Any, List
 import logging
 import re
+import os
 from .connection import VerticaConnectionManager, VerticaConfig, OperationType
 from starlette.applications import Starlette
 from starlette.routing import Mount
+from starlette.middleware.cors import CORSMiddleware
 import uvicorn
 import csv
 import io
@@ -87,6 +89,33 @@ async def run_sse(port: int = 8000) -> None:
     config = uvicorn.Config(starlette_app, host="0.0.0.0", port=port)  # noqa: S104
     app = uvicorn.Server(config)
     await app.serve()
+
+
+def run_http(port: int = 8000) -> None:
+    """Run the MCP server with streamable HTTP transport.
+
+    Args:
+        port: Port to listen on for HTTP transport (default: 8000)
+             In Smithery deployment, PORT env var will override this
+    """
+    logger.info("Vertica MCP Server starting in HTTP mode...")
+
+    # Setup Starlette app with CORS for cross-origin requests
+    app = mcp.streamable_http_app()
+
+    # IMPORTANT: add CORS middleware for browser based clients
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+        expose_headers=["mcp-session-id", "mcp-protocol-version"],
+        max_age=86400,
+    )
+
+    logger.info(f"Listening on port {port}")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="debug")
 
 
 @mcp.tool()

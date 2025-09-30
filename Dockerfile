@@ -15,5 +15,16 @@ RUN pip install --no-cache-dir .
 # Unbuffered output
 ENV PYTHONUNBUFFERED=1
 
-# Default entrypoint
-ENTRYPOINT ["mcp-vertica"]
+# Set transport mode to HTTP
+ENV TRANSPORT=http
+
+# Expose default port for documentation and convenience
+# Actual port is controlled by PORT env var (Smithery sets to 8081)
+EXPOSE 8081
+
+# Reset the entrypoint
+ENTRYPOINT []
+
+# Run with HTTP transport
+# Smithery will set PORT env var and other configuration via environment variables
+CMD ["mcp-vertica", "--transport", "http"]

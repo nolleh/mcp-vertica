@@ -5,7 +5,7 @@ warnings.filterwarnings(
     "ignore",
     message='Field name "schema" in ".*" shadows an attribute in parent "ArgModelBase"',
     category=UserWarning,
-    module="pydantic._internal._fields"
+    module="pydantic._internal._fields",
 )
 
 import asyncio
@@ -25,9 +25,10 @@ from .connection import (
     VERTICA_SSL_REJECT_UNAUTHORIZED,
 )
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 logger = logging.getLogger("mcp-vertica")
+
 
 def setup_logger(verbose: int) -> logging.Logger:
     logger = logging.getLogger("mcp-vertica")
@@ -46,28 +47,35 @@ def setup_logger(verbose: int) -> logging.Logger:
             handler.setLevel(logging.DEBUG)
             logger.setLevel(logging.DEBUG)
             level = logging.DEBUG
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
     logging.basicConfig(level=level, force=True)
     return logger
 
+
 def validate_port(ctx, param, value):
     if value is not None and not (1024 <= value <= 65535):
         raise click.BadParameter(f"{param.name} must be between 1024 and 65535")
     return value
 
+
 def validate_host(ctx, param, value):
     if value is not None:
         if not re.match(r"^[\w\.-]+$", value):
-            raise click.BadParameter(f"{param.name} must be a valid hostname or IP address")
+            raise click.BadParameter(
+                f"{param.name} must be a valid hostname or IP address"
+            )
     return value
+
 
 def main(
     verbose: int,
     env_file: str | None,
-    transport: str,
+    transport: str | None,
     port: int,
     host: str | None,
     db_port: int | None,
@@ -83,23 +91,35 @@ def main(
     # Configure logging based on verbosity
     setup_logger(verbose)
 
+    # Determine transport mode: CLI option > TRANSPORT env var > default (http)
+    if transport is None:
+        transport = os.environ.get("TRANSPORT", "http")
+    logger.info(f"Using transport mode: {transport}")
+
     # Set default environment variables
     os.environ.setdefault(VERTICA_CONNECTION_LIMIT, "10")
     os.environ.setdefault(VERTICA_SSL, "false")
     os.environ.setdefault(VERTICA_SSL_REJECT_UNAUTHORIZED, "true")
 
+    # Priority order for configuration:
+    # 1. Command line arguments (highest priority)
+    # 2. Environment variables (Docker/Smithery sets these)
+    # 3. .env file
+    # 4. Default values (lowest priority)
+
     # Load environment variables from file if specified, otherwise try default .env
+    # This will NOT override existing environment variables
     if env_file:
         logging.debug(f"Loading environment from file: {env_file}")
-        load_dotenv(env_file)
+        load_dotenv(env_file, override=False)
     else:
         logging.debug("Attempting to load environment from default .env file")
-        load_dotenv()
+        load_dotenv(override=False)
 
-    # Set environment variables from command line arguments if provided
+    # Override with command line arguments if provided (CLI has highest priority)
     if host is not None:
         os.environ[VERTICA_HOST] = host
-    if db_port:
+    if db_port is not None:
         os.environ[VERTICA_PORT] = str(db_port)
     if database is not None:
         os.environ[VERTICA_DATABASE] = database
@@ -107,18 +127,27 @@ def main(
         os.environ[VERTICA_USER] = user
     if password is not None:
         os.environ[VERTICA_PASSWORD] = password
-    if connection_limit:
+    if connection_limit is not None:
         os.environ[VERTICA_CONNECTION_LIMIT] = str(connection_limit)
     if ssl is not None:
         os.environ[VERTICA_SSL] = str(ssl).lower()
     if ssl_reject_unauthorized is not None:
-        os.environ[VERTICA_SSL_REJECT_UNAUTHORIZED] = str(ssl_reject_unauthorized).lower()
+        os.environ[VERTICA_SSL_REJECT_UNAUTHORIZED] = str(
+            ssl_reject_unauthorized
+        ).lower()
+
+    if not password:
+        logging.warning("Empty password should be used only in local enviroment")
+        print("Empty password should be used only in local enviroment")
 
     # Run the server with specified transport
     if transport == "sse":
         asyncio.run(run_sse(port=port))
+    elif transport == "http":
+        run_http(port=port)
     else:
         mcp.run()
+
 
 @click.command()
 @click.option(
@@ -132,15 +161,15 @@ def main(
 )
 @click.option(
     "--transport",
-    type=click.Choice(["stdio", "sse"]),
-    default="stdio",
-    help="Transport type (stdio or sse)",
+    type=click.Choice(["stdio", "sse", "http"]),
+    default=None,
+    help="Transport type (stdio, sse, or http). If not specified, uses TRANSPORT env var or defaults to http",
 )
 @click.option(
     "--port",
-    default=8000,
+    default=8081,
     callback=validate_port,
-    help="Port to listen on for SSE transport",
+    help="Port to listen on for SSE/HTTP transport",
 )
 @click.option(
     "--host",
@@ -163,6 +192,7 @@ def main(
 )
 @click.option(
     "--password",
+    required=False,
     help="Vertica password",
 )
 @click.option(
@@ -185,6 +215,7 @@ def main(
 )
 def cli(**kwargs):
     main(**kwargs)
+
 
 if __name__ == "__main__":
     cli()

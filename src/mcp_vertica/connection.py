@@ -9,7 +9,7 @@ from enum import Enum, auto
 
 # Constants for environment variables
 VERTICA_HOST = "VERTICA_HOST"
-VERTICA_PORT = "VERTICA_PORT"
+VERTICA_PORT = "VERTICA_PORT"  # Vertica database port (e.g., 5433)
 VERTICA_DATABASE = "VERTICA_DATABASE"
 VERTICA_USER = "VERTICA_USER"
 VERTICA_PASSWORD = "VERTICA_PASSWORD"

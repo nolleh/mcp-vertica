@@ -21,6 +21,28 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  mcp-vertica:
+    image: nolleh/mcp-vertica:latest
+    container_name: mcp-vertica
+    ports:
+      - "8081:8081"
+    environment:
+      # Transport mode
+      TRANSPORT: http
+      PORT: 8081
+      # Vertica connection settings
+      VERTICA_HOST: vertica
+      VERTICA_PORT: 5433
+      VERTICA_DATABASE: VMart
+      VERTICA_USER: dbadmin
+      VERTICA_PASSWORD: ""
+      VERTICA_CONNECTION_LIMIT: 10
+      VERTICA_SSL: "false"
+    depends_on:
+      vertica:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   vertica_data:
     driver: local
