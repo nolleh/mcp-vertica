@@ -1,29 +1,12 @@
 # Smithery configuration file: https://smithery.ai/docs/build/project-config
 
-transport: streamable_http
+runtime: "container"
+build:
+  dockerfile: "Dockerfile"
+  dockerBuildPath: "."
 
 startCommand:
-  type: container
-  commandFunction:
-    # A JS function that produces environment variables from config for HTTP transport
-    |-
-    (config) => {
-      const env = {};
-      // Vertica connection settings
-      if (config.host) env.VERTICA_HOST = config.host;
-      if (config.dbPort) env.VERTICA_PORT = config.dbPort.toString();
-      if (config.database) env.VERTICA_DATABASE = config.database;
-      if (config.user) env.VERTICA_USER = config.user;
-      if (config.password !== undefined) env.VERTICA_PASSWORD = config.password;
-      if (config.connectionLimit !== undefined) env.VERTICA_CONNECTION_LIMIT = config.connectionLimit.toString();
-      if (config.ssl !== undefined) env.VERTICA_SSL = config.ssl.toString();
-      if (config.sslRejectUnauthorized !== undefined) env.VERTICA_SSL_REJECT_UNAUTHORIZED = config.sslRejectUnauthorized.toString();
-
-      // Transport mode
-      env.TRANSPORT = 'http';
-
-      return { env };
-    }
+  type: "http"
   configSchema:
     # JSON Schema defining the configuration options for the MCP.
     type: object
