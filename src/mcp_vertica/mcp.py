@@ -54,6 +54,28 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         return response
 
 
+async def get_or_create_manager(ctx: Context) -> VerticaConnectionManager | None:
+    """Get connection manager from context or create it lazily.
+
+    Args:
+        ctx: FastMCP context
+
+    Returns:
+        VerticaConnectionManager instance or None if creation fails
+    """
+    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    if not manager:
+        try:
+            manager = VerticaConnectionManager()
+            config = VerticaConfig.from_env()
+            manager.initialize_default(config)
+            await ctx.info("Connection manager initialized from request config")
+        except Exception as e:
+            await ctx.error(f"Failed to initialize database connection: {str(e)}")
+            return None
+    return manager
+
+
 def extract_operation_type(query: str) -> OperationType | None:
     """Extract the operation type from a SQL query."""
     query = query.strip().upper()
@@ -86,23 +108,22 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
         server: FastMCP server instance
 
     Yields:
-        Dictionary containing the Vertica connection manager (may be None if initialization failed)
+        Dictionary containing the Vertica connection manager (may be None if env vars not set)
     """
     manager = None
     try:
-        # Try to initialize Vertica connection manager
-        # This may fail if credentials are not provided (e.g., Smithery without test profile)
+        # Try to initialize connection manager from environment variables
+        # This works for stdio clients (env vars or CLI args provided)
+        # For Smithery (http), env vars are set via ConfigMiddleware on each request
         try:
             manager = VerticaConnectionManager()
             config = VerticaConfig.from_env()
             manager.initialize_default(config)
-            logger.info("Vertica connection manager initialized successfully")
+            logger.info("Vertica connection manager initialized successfully at startup")
         except Exception as e:
-            # Log but don't fail - allow server to start for tool scanning
-            logger.warning(f"Failed to initialize Vertica connection (server will start anyway): {str(e)}")
-            logger.info("Server will start without database connection. Configure test profile to use tools.")
+            # Not an error - config might come later via URL parameters (Smithery)
+            logger.info(f"Connection manager not initialized at startup (will be lazy-loaded if needed): {str(e)}")
 
-        # Always yield, even if manager initialization failed
         yield {"vertica_manager": manager}
     finally:
         # Cleanup resources
@@ -181,11 +202,10 @@ async def execute_query(ctx: Context, query: str) -> str:
     """
     await ctx.info(f"Executing query: {query}")
 
-    # Get connection manager from context
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    # Get or create connection manager
+    manager = await get_or_create_manager(ctx)
     if not manager:
-        await ctx.error("No database connection manager available")
-        return "Error: No database connection manager available"
+        return "Error: Failed to initialize database connection. Check configuration."
 
     # Extract schema from query if not provided
     schema = extract_schema_from_query(query)
@@ -232,11 +252,10 @@ async def stream_query(
     """
     await ctx.info(f"Executing query with batching: {query}")
 
-    # Get connection manager from context
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    # Get or create connection manager
+    manager = await get_or_create_manager(ctx)
     if not manager:
-        await ctx.error("No database connection manager available")
-        return "Error: No database connection manager available"
+        return "Error: Failed to initialize database connection. Check configuration."
 
     # Extract schema from query if not provided
     schema = extract_schema_from_query(query)
@@ -294,11 +313,10 @@ async def copy_data(
     """
     await ctx.info(f"Copying {len(data)} rows to table: {table}")
 
-    # Get connection manager from context
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    # Get or create connection manager
+    manager = await get_or_create_manager(ctx)
     if not manager:
-        await ctx.error("No database connection manager available")
-        return "Error: No database connection manager available"
+        return "Error: Failed to initialize database connection. Check configuration."
 
     # Check operation permissions
     if not manager.is_operation_allowed(schema, OperationType.INSERT):
@@ -355,10 +373,10 @@ async def get_table_structure(
     """
     await ctx.info(f"Getting structure for table: {schema}.{table_name}")
 
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    # Get or create connection manager
+    manager = await get_or_create_manager(ctx)
     if not manager:
-        await ctx.error("No database connection manager available")
-        return "Error: No database connection manager available"
+        return "Error: Failed to initialize database connection. Check configuration."
 
     query = """
     SELECT
@@ -448,10 +466,10 @@ async def list_indexes(
     """
     await ctx.info(f"Listing indexes for table: {schema}.{table_name}")
 
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    # Get or create connection manager
+    manager = await get_or_create_manager(ctx)
     if not manager:
-        await ctx.error("No database connection manager available")
-        return "Error: No database connection manager available"
+        return "Error: Failed to initialize database connection. Check configuration."
 
     query = """
     SELECT
@@ -509,10 +527,10 @@ async def list_views(
     """
     await ctx.info(f"Listing views in schema: {schema}")
 
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    # Get or create connection manager
+    manager = await get_or_create_manager(ctx)
     if not manager:
-        await ctx.error("No database connection manager available")
-        return "Error: No database connection manager available"
+        return "Error: Failed to initialize database connection. Check configuration."
 
     query = """
     SELECT
