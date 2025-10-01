@@ -5,16 +5,54 @@ from typing import Any, List
 import logging
 import re
 import os
-from .connection import VerticaConnectionManager, VerticaConfig, OperationType
+from .connection import VerticaConnectionManager, VerticaConfig, OperationType, VERTICA_HOST, VERTICA_PORT, VERTICA_DATABASE, VERTICA_USER, VERTICA_PASSWORD, VERTICA_CONNECTION_LIMIT, VERTICA_SSL, VERTICA_SSL_REJECT_UNAUTHORIZED
 from starlette.applications import Starlette
 from starlette.routing import Mount
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 import uvicorn
 import csv
 import io
 
 # Configure logging
 logger = logging.getLogger("mcp-vertica")
+
+
+class ConfigMiddleware(BaseHTTPMiddleware):
+    """Middleware to parse Smithery config from URL parameters and set environment variables."""
+
+    # Mapping from Smithery config keys to environment variables
+    CONFIG_MAPPING = {
+        "host": VERTICA_HOST,
+        "dbPort": VERTICA_PORT,
+        "database": VERTICA_DATABASE,
+        "user": VERTICA_USER,
+        "password": VERTICA_PASSWORD,
+        "connectionLimit": VERTICA_CONNECTION_LIMIT,
+        "ssl": VERTICA_SSL,
+        "sslRejectUnauthorized": VERTICA_SSL_REJECT_UNAUTHORIZED,
+    }
+
+    async def dispatch(self, request: Request, call_next):
+        """Parse URL parameters and set environment variables before processing request."""
+        # Get query parameters
+        params = dict(request.query_params)
+
+        # Map config parameters to environment variables
+        for config_key, env_var in self.CONFIG_MAPPING.items():
+            if config_key in params:
+                value = params[config_key]
+                # Convert boolean strings
+                if isinstance(value, str):
+                    if value.lower() in ("true", "false"):
+                        value = value.lower()
+                os.environ[env_var] = str(value)
+                logger.debug(f"Set {env_var}={value} from URL parameter {config_key}")
+
+        response = await call_next(request)
+        return response
+
 
 def extract_operation_type(query: str) -> OperationType | None:
     """Extract the operation type from a SQL query."""
@@ -107,6 +145,10 @@ def run_http(port: int = 8000) -> None:
 
     # Setup Starlette app with CORS for cross-origin requests
     app = mcp.streamable_http_app()
+
+    # Add config middleware to parse Smithery URL parameters
+    # This must be added before CORS to ensure env vars are set early
+    app.add_middleware(ConfigMiddleware)
 
     # IMPORTANT: add CORS middleware for browser based clients
     # Note: allow_credentials=False to work with allow_origins=["*"]

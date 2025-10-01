@@ -25,7 +25,7 @@ from .connection import (
     VERTICA_SSL_REJECT_UNAUTHORIZED,
 )
 
-__version__ = "0.1.8"
+__version__ = "0.1.9"
 
 logger = logging.getLogger("mcp-vertica")
 
@@ -91,9 +91,11 @@ def main(
     # Configure logging based on verbosity
     setup_logger(verbose)
 
-    # Determine transport mode: CLI option > TRANSPORT env var > default (http)
+    # Determine transport mode: CLI option > TRANSPORT env var > default (stdio)
+    # stdio: MCP clients (Claude Desktop, etc.)
+    # http: Smithery, Docker deployments (set via ENV)
     if transport is None:
-        transport = os.environ.get("TRANSPORT", "http")
+        transport = os.environ.get("TRANSPORT", "stdio")
     logger.info(f"Using transport mode: {transport}")
 
     # Determine port: CLI option > PORT env var > default (8081)

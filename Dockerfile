@@ -28,16 +28,14 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Unbuffered output
 ENV PYTHONUNBUFFERED=1
 
-# Set transport mode to HTTP
-ENV TRANSPORT=http
-
-# Expose default port for documentation and convenience
-# Actual port is controlled by PORT env var (Smithery sets to 8081)
+# Expose default port for HTTP transport (used by Smithery)
+# Smithery will set TRANSPORT=http and PORT env vars
 EXPOSE 8081
 
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
 
-# Run with HTTP transport using uv
-# Smithery will set PORT env var and other configuration via environment variables
+# Run MCP server using uv
+# Default: stdio transport (for MCP clients)
+# Smithery: http transport (set via TRANSPORT env var)
 CMD ["uv", "run", "mcp-vertica"]
