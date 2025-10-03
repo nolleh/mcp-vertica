@@ -95,7 +95,7 @@ def main(
     # stdio: MCP clients (Claude Desktop, etc.)
     # http: Smithery, Docker deployments (set via ENV)
     if transport is None:
-        transport = os.environ.get("TRANSPORT", "http")
+        transport = os.environ.get("TRANSPORT", "stdio")
     logger.info(f"Using transport mode: {transport}")
 
     # Determine port: CLI option > PORT env var > default (8081)
