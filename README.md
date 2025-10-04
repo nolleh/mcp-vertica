@@ -2,12 +2,17 @@
 
 # MCP Vertica
 
+[![PyPI version](https://badge.fury.io/py/mcp-vertica.svg)](https://pypi.org/project/mcp-vertica/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/mcp-vertica)](https://pepy.tech/project/mcp-vertica)
 [![smithery badge](https://smithery.ai/badge/@nolleh/mcp-vertica)](https://smithery.ai/server/@nolleh/mcp-vertica)
+[![MCP Community](https://img.shields.io/badge/MCP-Community-blueviolet)](https://github.com/modelcontextprotocol/servers)
+
+**🏆 First implementation of Vertica MCP Server**
+
+✅ **Listed in [Model Context Protocol Official Registry](https://github.com/modelcontextprotocol/servers)**
 
 A Vertica MCP(model-context-protocol) Server
-
-> [!IMPORTANT]
-> If you have troubles to connect this mcp server, try to run `uv cache clean`, and then retry.
 
 ### Example: MCP Server Setting
 
