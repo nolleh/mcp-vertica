@@ -30,6 +30,10 @@ services:
       # Transport mode
       TRANSPORT: http
       PORT: 8081
+      # Debug settings (0=none, 1=-v, 2=-vv, 3=-vvv)
+      DEBUG: 0
+      # Extra command line arguments (optional)
+      # EXTRA_ARGS: "--some-flag"
       # Vertica connection settings
       VERTICA_HOST: vertica
       VERTICA_PORT: 5433
@@ -41,7 +45,6 @@ services:
     depends_on:
       vertica:
         condition: service_healthy
-    restart: unless-stopped
 
 volumes:
   vertica_data:

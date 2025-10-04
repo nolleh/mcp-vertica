@@ -5,6 +5,7 @@ from typing import Any, List
 import logging
 import re
 import os
+from .__about__ import __version__
 from .connection import VerticaConnectionManager, VerticaConfig, OperationType, VERTICA_HOST, VERTICA_PORT, VERTICA_DATABASE, VERTICA_USER, VERTICA_PASSWORD, VERTICA_CONNECTION_LIMIT, VERTICA_SSL, VERTICA_SSL_REJECT_UNAUTHORIZED
 from starlette.applications import Starlette
 from starlette.routing import Mount
@@ -17,6 +18,9 @@ import io
 
 # Configure logging
 logger = logging.getLogger("mcp-vertica")
+
+# Log version at module load time
+logger.info(f"Loading mcp_vertica version: {__version__}")
 
 
 class ConfigMiddleware(BaseHTTPMiddleware):
@@ -136,11 +140,16 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
 
 
 # Create FastMCP instance with SSE support
+logger.info(f"Creating FastMCP instance with version: {__version__}")
 mcp = FastMCP(
     "Vertica Service",
     dependencies=["vertica-python", "pydantic", "starlette", "uvicorn"],
     lifespan=server_lifespan,
 )
+# Manually set the version on the underlying MCP server
+# FastMCP doesn't pass version to the Server, so we set it directly
+mcp._mcp_server.version = __version__
+logger.info(f"FastMCP instance created with version: {mcp._mcp_server.version}")
 
 
 async def run_sse(port: int = 8000) -> None:

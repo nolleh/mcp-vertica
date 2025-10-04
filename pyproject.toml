@@ -19,7 +19,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "src/mcp_vertica/__init__.py"
+path = "src/mcp_vertica/__about__.py"
 
 [project.scripts]
 mcp-vertica = "mcp_vertica:cli"

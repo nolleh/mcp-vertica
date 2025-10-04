@@ -75,12 +75,17 @@ class VerticaConfig:
                         schema_permissions[schema] = SchemaPermissions()
                     setattr(schema_permissions[schema], perm_type, value.strip().lower() == 'true')
 
+        password = password=os.getenv("VERTICA_PASSWORD", "")
+        if not password or not password.strip():
+            logging.warning("Empty password should be used only in local enviroment")
+            print("Empty password should be used only in local enviroment")
+
         return cls(
             host=os.getenv("VERTICA_HOST", "localhost"),
             port=int(os.getenv("VERTICA_PORT", "5433")),
             database=os.getenv("VERTICA_DATABASE", "VMart"),
-            user=os.getenv("VERTICA_USER", "newdbadmin"),
-            password=os.getenv("VERTICA_PASSWORD", "vertica"),
+            user=os.getenv("VERTICA_USER", "dbadmin"),
+            password=password,
             connection_limit=int(os.getenv("VERTICA_CONNECTION_LIMIT", "10")),
             ssl=os.getenv("VERTICA_SSL", "false").lower() == "true",
             ssl_reject_unauthorized=os.getenv("VERTICA_SSL_REJECT_UNAUTHORIZED", "true").lower() == "true",

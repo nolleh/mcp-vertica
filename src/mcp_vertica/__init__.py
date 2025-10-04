@@ -13,6 +13,7 @@ import logging
 import os
 import click
 from dotenv import load_dotenv
+from .__about__ import __version__
 from .mcp import *
 from .connection import (
     VERTICA_HOST,
@@ -24,8 +25,6 @@ from .connection import (
     VERTICA_SSL,
     VERTICA_SSL_REJECT_UNAUTHORIZED,
 )
-
-__version__ = "0.1.11"
 
 logger = logging.getLogger("mcp-vertica")
 
@@ -142,10 +141,6 @@ def main(
         os.environ[VERTICA_SSL_REJECT_UNAUTHORIZED] = str(
             ssl_reject_unauthorized
         ).lower()
-
-    if not password:
-        logging.warning("Empty password should be used only in local enviroment")
-        print("Empty password should be used only in local enviroment")
 
     # Run the server with specified transport
     if transport == "sse":

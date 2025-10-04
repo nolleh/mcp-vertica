@@ -204,6 +204,29 @@ Open your favorite mcp client's config file, then configure with `uvx mcp-vertic
 
 ## Development
 
+### Debug Mode
+
+When running with Docker, you can enable debug logging by setting the `DEBUG` environment variable:
+
+```bash
+# Run with maximum verbosity (-vvv)
+docker run -e DEBUG=3 -e VERTICA_HOST=localhost ... nolleh/mcp-vertica:latest
+
+# Run with medium verbosity (-vv)
+docker run -e DEBUG=2 -e VERTICA_HOST=localhost ... nolleh/mcp-vertica:latest
+
+# Pass additional arguments
+docker run -e EXTRA_ARGS="--connection-limit=20" -e VERTICA_HOST=localhost ... nolleh/mcp-vertica:latest
+```
+
+In `docker-compose.yml`:
+
+```yaml
+environment:
+  DEBUG: 3  # 0=none, 1=-v, 2=-vv, 3=-vvv
+  EXTRA_ARGS: "--connection-limit=20"  # Optional additional arguments
+```
+
 #### Appendix: For Testing, VerticaDB Docker Compose Example
 
 ```yaml
@@ -241,6 +264,31 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+
+  mcp-vertica:
+    image: nolleh/mcp-vertica:latest
+    container_name: mcp-vertica
+    ports:
+      - "8081:8081"
+    environment:
+      # Transport mode
+      TRANSPORT: http
+      PORT: 8081
+      # Debug settings (0=none, 1=-v, 2=-vv, 3=-vvv)
+      DEBUG: 3  # Set to 3 for maximum verbosity
+      # Extra command line arguments (optional)
+      # EXTRA_ARGS: "--some-flag"
+      # Vertica connection settings
+      VERTICA_HOST: vertica
+      VERTICA_PORT: 5433
+      VERTICA_DATABASE: VMart
+      VERTICA_USER: dbadmin
+      VERTICA_PASSWORD: ""
+      VERTICA_CONNECTION_LIMIT: 10
+      VERTICA_SSL: "false"
+    depends_on:
+      vertica:
+        condition: service_healthy
 
 volumes:
   vertica_data:
