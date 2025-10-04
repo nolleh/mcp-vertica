@@ -8,7 +8,7 @@
 [![smithery badge](https://smithery.ai/badge/@nolleh/mcp-vertica)](https://smithery.ai/server/@nolleh/mcp-vertica)
 [![MCP Community](https://img.shields.io/badge/MCP-Community-blueviolet)](https://github.com/modelcontextprotocol/servers)
 
-**🏆 First implementation of Vertica MCP Server**
+**🏆 First implementation of Vertica MCP Server** • [Learn more](https://github.com/nolleh/mcp-vertica/wiki)
 
 ✅ **Listed in [Model Context Protocol Official Registry](https://github.com/modelcontextprotocol/servers)**
 
