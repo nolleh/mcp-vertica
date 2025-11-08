@@ -14,6 +14,10 @@
 
 A Vertica MCP(model-context-protocol) Server
 
+<a href="https://glama.ai/mcp/servers/@nolleh/mcp-vertica">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@nolleh/mcp-vertica/badge" alt="Vertica MCP server" />
+</a>
+
 ### Example: MCP Server Setting
 
 Create or edit the file your mcp client config file with the following content:
