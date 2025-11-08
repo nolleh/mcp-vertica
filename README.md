@@ -2,7 +2,15 @@
 
 # MCP Vertica
 
+[![PyPI version](https://badge.fury.io/py/mcp-vertica.svg)](https://pypi.org/project/mcp-vertica/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://static.pepy.tech/badge/mcp-vertica)](https://pepy.tech/project/mcp-vertica)
 [![smithery badge](https://smithery.ai/badge/@nolleh/mcp-vertica)](https://smithery.ai/server/@nolleh/mcp-vertica)
+[![MCP Community](https://img.shields.io/badge/MCP-Community-blueviolet)](https://github.com/modelcontextprotocol/servers)
+
+**🏆 First implementation of Vertica MCP Server** • [Learn more](https://github.com/nolleh/mcp-vertica/wiki)
+
+✅ **Listed in [Model Context Protocol Official Registry](https://github.com/modelcontextprotocol/servers)**
 
 A Vertica MCP(model-context-protocol) Server
 
@@ -13,6 +21,31 @@ A Vertica MCP(model-context-protocol) Server
 ### Example: MCP Server Setting
 
 Create or edit the file your mcp client config file with the following content:
+
+#### UVX
+
+```json
+{
+  "mcpServers": {
+    "vertica": {
+      "command": "uvx",
+      "args": ["mcp-vertica"],
+      "env": {
+        "VERTICA_HOST": "localhost",
+        "VERTICA_PORT": 5433,
+        "VERTICA_DATABASE": "VMart",
+        "VERTICA_USER": "dbadmin",
+        "VERTICA_PASSWORD": "test_password",
+        "VERTICA_CONNECTION_LIMIT": 10,
+        "VERTICA_SSL": false,
+        "VERTICA_SSL_REJECT_UNAUTHORIZED": true
+      }
+    }
+  }
+}
+```
+
+Or with args
 
 ```json
 {
@@ -25,7 +58,7 @@ Create or edit the file your mcp client config file with the following content:
         "--db-port=5433",
         "--database=VMart",
         "--user=dbadmin",
-        "--password=",
+        "--password=test_password",
         "--connection-limit=10"
       ]
     }
@@ -33,28 +66,29 @@ Create or edit the file your mcp client config file with the following content:
 }
 ```
 
-Or with env
 
+#### Docker
 ```json
 {
   "mcpServers": {
     "vertica": {
-      "command": "uvx",
-      "args": ["mcp-vertica"],
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "nolleh/mcp-vertica"],
       "env": {
-        "VERTICA_HOST":"localhost",
-        "VERTICA_PORT":5433,
-        "VERTICA_DATABASE":"VMart",
-        "VERTICA_USER":"dbadmin",
-        "VERTICA_PASSWORD":"",
-        "VERTICA_CONNECTION_LIMIT":10,
-        "VERTICA_SSL":false,
-        "VERTICA_SSL_REJECT_UNAUTHORIZED":true
+        "VERTICA_HOST": "localhost",
+        "VERTICA_PORT": 5433,
+        "VERTICA_DATABASE": "VMart",
+        "VERTICA_USER": "dbadmin",
+        "VERTICA_PASSWORD": "test_password",
+        "VERTICA_CONNECTION_LIMIT": 10,
+        "VERTICA_SSL": false,
+        "VERTICA_SSL_REJECT_UNAUTHORIZED": true
       }
     }
   }
 }
 ```
+
 
 > [!Note]
 >
@@ -173,53 +207,36 @@ npx -y @smithery/cli install @nolleh/mcp-vertica --client claude
 
 ### Installing Manually
 
-```bash
-uvx mcp-vertica
-```
+Open your favorite mcp client's config file, then configure with `uvx mcp-vertica`
 
-## License
+[Example: Mcp Server Setting](#example%3A-mcp-server-setting)
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## Development
 
-## Running in Docker Environment
+### Debug Mode
 
-When running Vertica with Docker Compose, you can run the MCP server as follows:
-
-### 1. Run with Direct Parameters
+When running with Docker, you can enable debug logging by setting the `DEBUG` environment variable:
 
 ```bash
-uvx mcp-vertica \
-  --host localhost \
-  --db-port 5433 \
-  --database VMart \
-  --user dbadmin \
-  --password "" \
-  --connection-limit 10
+# Run with maximum verbosity (-vvv)
+docker run -e DEBUG=3 -e VERTICA_HOST=localhost ... nolleh/mcp-vertica:latest
+
+# Run with medium verbosity (-vv)
+docker run -e DEBUG=2 -e VERTICA_HOST=localhost ... nolleh/mcp-vertica:latest
+
+# Pass additional arguments
+docker run -e EXTRA_ARGS="--connection-limit=20" -e VERTICA_HOST=localhost ... nolleh/mcp-vertica:latest
 ```
 
-### 2. Run with Environment Variables
+In `docker-compose.yml`:
 
-create a `.env` file with the following content:
-
-```env
-VERTICA_HOST=localhost
-VERTICA_PORT=5433
-VERTICA_DATABASE=test_db
-VERTICA_USER=test_user
-VERTICA_PASSWORD=test_password
-VERTICA_CONNECTION_LIMIT=10
-VERTICA_SSL=false
-VERTICA_SSL_REJECT_UNAUTHORIZED=true
+```yaml
+environment:
+  DEBUG: 3  # 0=none, 1=-v, 2=-vv, 3=-vvv
+  EXTRA_ARGS: "--connection-limit=20"  # Optional additional arguments
 ```
 
-Then run with .env
-
-```bash
-uvx mcp-vertica \
-  --env-file .env
-```
-
-### For Testing, VerticaDB Docker Compose Example
+#### Appendix: For Testing, VerticaDB Docker Compose Example
 
 ```yaml
 version: "3.8"
@@ -257,7 +274,39 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  mcp-vertica:
+    image: nolleh/mcp-vertica:latest
+    container_name: mcp-vertica
+    ports:
+      - "8081:8081"
+    environment:
+      # Transport mode
+      TRANSPORT: http
+      PORT: 8081
+      # Debug settings (0=none, 1=-v, 2=-vv, 3=-vvv)
+      DEBUG: 3  # Set to 3 for maximum verbosity
+      # Extra command line arguments (optional)
+      # EXTRA_ARGS: "--some-flag"
+      # Vertica connection settings
+      VERTICA_HOST: vertica
+      VERTICA_PORT: 5433
+      VERTICA_DATABASE: VMart
+      VERTICA_USER: dbadmin
+      VERTICA_PASSWORD: ""
+      VERTICA_CONNECTION_LIMIT: 10
+      VERTICA_SSL: "false"
+    depends_on:
+      vertica:
+        condition: service_healthy
+
 volumes:
   vertica_data:
     driver: local
 ```
+
+Then run server by following instruction [Example: Mcp Server Setting](#example%3A-mcp-server-setting),
+Then see everything works as fine
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

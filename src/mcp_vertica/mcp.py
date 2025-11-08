@@ -1,18 +1,84 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from mcp.server.fastmcp import FastMCP, Context
-from typing import Any, AsyncGenerator, List
+from typing import Any, List
 import logging
 import re
-from .connection import VerticaConnectionManager, VerticaConfig, OperationType
+import os
+from .__about__ import __version__
+from .connection import VerticaConnectionManager, VerticaConfig, OperationType, VERTICA_HOST, VERTICA_PORT, VERTICA_DATABASE, VERTICA_USER, VERTICA_PASSWORD, VERTICA_CONNECTION_LIMIT, VERTICA_SSL, VERTICA_SSL_REJECT_UNAUTHORIZED
 from starlette.applications import Starlette
 from starlette.routing import Mount
+from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 import uvicorn
 import csv
 import io
 
 # Configure logging
 logger = logging.getLogger("mcp-vertica")
+
+# Log version at module load time
+logger.info(f"Loading mcp_vertica version: {__version__}")
+
+
+class ConfigMiddleware(BaseHTTPMiddleware):
+    """Middleware to parse Smithery config from URL parameters and set environment variables."""
+
+    # Mapping from Smithery config keys to environment variables
+    CONFIG_MAPPING = {
+        "host": VERTICA_HOST,
+        "dbPort": VERTICA_PORT,
+        "database": VERTICA_DATABASE,
+        "user": VERTICA_USER,
+        "password": VERTICA_PASSWORD,
+        "connectionLimit": VERTICA_CONNECTION_LIMIT,
+        "ssl": VERTICA_SSL,
+        "sslRejectUnauthorized": VERTICA_SSL_REJECT_UNAUTHORIZED,
+    }
+
+    async def dispatch(self, request: Request, call_next):
+        """Parse URL parameters and set environment variables before processing request."""
+        # Get query parameters
+        params = dict(request.query_params)
+
+        # Map config parameters to environment variables
+        for config_key, env_var in self.CONFIG_MAPPING.items():
+            if config_key in params:
+                value = params[config_key]
+                # Convert boolean strings
+                if isinstance(value, str):
+                    if value.lower() in ("true", "false"):
+                        value = value.lower()
+                os.environ[env_var] = str(value)
+                logger.debug(f"Set {env_var}={value} from URL parameter {config_key}")
+
+        response = await call_next(request)
+        return response
+
+
+async def get_or_create_manager(ctx: Context) -> VerticaConnectionManager | None:
+    """Get connection manager from context or create it lazily.
+
+    Args:
+        ctx: FastMCP context
+
+    Returns:
+        VerticaConnectionManager instance or None if creation fails
+    """
+    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    if not manager:
+        try:
+            manager = VerticaConnectionManager()
+            config = VerticaConfig.from_env()
+            manager.initialize_default(config)
+            await ctx.info("Connection manager initialized from request config")
+        except Exception as e:
+            await ctx.error(f"Failed to initialize database connection: {str(e)}")
+            return None
+    return manager
+
 
 def extract_operation_type(query: str) -> OperationType | None:
     """Extract the operation type from a SQL query."""
@@ -46,19 +112,23 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
         server: FastMCP server instance
 
     Yields:
-        Dictionary containing the Vertica connection manager
+        Dictionary containing the Vertica connection manager (may be None if env vars not set)
     """
     manager = None
     try:
-        # Initialize Vertica connection manager
-        manager = VerticaConnectionManager()
-        config = VerticaConfig.from_env()
-        manager.initialize_default(config)
-        logger.info("Vertica connection manager initialized")
+        # Try to initialize connection manager from environment variables
+        # This works for stdio clients (env vars or CLI args provided)
+        # For Smithery (http), env vars are set via ConfigMiddleware on each request
+        try:
+            manager = VerticaConnectionManager()
+            config = VerticaConfig.from_env()
+            manager.initialize_default(config)
+            logger.info("Vertica connection manager initialized successfully at startup")
+        except Exception as e:
+            # Not an error - config might come later via URL parameters (Smithery)
+            logger.info(f"Connection manager not initialized at startup (will be lazy-loaded if needed): {str(e)}")
+
         yield {"vertica_manager": manager}
-    except Exception as e:
-        logger.error(f"Failed to initialize server: {str(e)}")
-        raise
     finally:
         # Cleanup resources
         if manager:
@@ -70,11 +140,16 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
 
 
 # Create FastMCP instance with SSE support
+logger.info(f"Creating FastMCP instance with version: {__version__}")
 mcp = FastMCP(
     "Vertica Service",
     dependencies=["vertica-python", "pydantic", "starlette", "uvicorn"],
     lifespan=server_lifespan,
 )
+# Manually set the version on the underlying MCP server
+# FastMCP doesn't pass version to the Server, so we set it directly
+mcp._mcp_server.version = __version__
+logger.info(f"FastMCP instance created with version: {mcp._mcp_server.version}")
 
 
 async def run_sse(port: int = 8000) -> None:
@@ -87,6 +162,39 @@ async def run_sse(port: int = 8000) -> None:
     config = uvicorn.Config(starlette_app, host="0.0.0.0", port=port)  # noqa: S104
     app = uvicorn.Server(config)
     await app.serve()
+
+
+def run_http(port: int = 8000) -> None:
+    """Run the MCP server with streamable HTTP transport.
+
+    Args:
+        port: Port to listen on for HTTP transport (default: 8000)
+             In Smithery deployment, PORT env var will override this
+    """
+    logger.info("Vertica MCP Server starting in HTTP mode...")
+
+    # Setup Starlette app with CORS for cross-origin requests
+    app = mcp.streamable_http_app()
+
+    # Add config middleware to parse Smithery URL parameters
+    # This must be added before CORS to ensure env vars are set early
+    app.add_middleware(ConfigMiddleware)
+
+    # IMPORTANT: add CORS middleware for browser based clients
+    # Note: allow_credentials=False to work with allow_origins=["*"]
+    # This is required for Smithery scanner to work properly
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,  # Changed from True to work with wildcard origins
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+        expose_headers=["mcp-session-id", "mcp-protocol-version"],
+        max_age=86400,
+    )
+
+    logger.info(f"Listening on port {port}")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="debug")
 
 
 @mcp.tool()
@@ -103,11 +211,10 @@ async def execute_query(ctx: Context, query: str) -> str:
     """
     await ctx.info(f"Executing query: {query}")
 
-    # Get connection manager from context
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    # Get or create connection manager
+    manager = await get_or_create_manager(ctx)
     if not manager:
-        await ctx.error("No database connection manager available")
-        return "Error: No database connection manager available"
+        return "Error: Failed to initialize database connection. Check configuration."
 
     # Extract schema from query if not provided
     schema = extract_schema_from_query(query)
@@ -141,25 +248,23 @@ async def execute_query(ctx: Context, query: str) -> str:
 @mcp.tool()
 async def stream_query(
     ctx: Context, query: str, batch_size: int = 1000
-) -> AsyncGenerator[str, None]:
-    """Execute a SQL query and stream the results in batches.
+) -> str:
+    """Execute a SQL query and return the results in batches as a single string.
 
     Args:
         ctx: FastMCP context for progress reporting and logging
         query: SQL query to execute
         batch_size: Number of rows to fetch at once
 
-    Yields:
-        Batches of query results as strings
+    Returns:
+        Query results as a concatenated string
     """
-    await ctx.info(f"Streaming query: {query}")
+    await ctx.info(f"Executing query with batching: {query}")
 
-    # Get connection manager from context
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    # Get or create connection manager
+    manager = await get_or_create_manager(ctx)
     if not manager:
-        await ctx.error("No database connection manager available")
-        yield "Error: No database connection manager available"
-        return
+        return "Error: Failed to initialize database connection. Check configuration."
 
     # Extract schema from query if not provided
     schema = extract_schema_from_query(query)
@@ -168,8 +273,7 @@ async def stream_query(
     if operation and not manager.is_operation_allowed(schema or "default", operation):
         error_msg = f"Operation {operation.name} not allowed for schema {schema}"
         await ctx.error(error_msg)
-        yield error_msg
-        return
+        return error_msg
 
     conn = None
     cursor = None
@@ -178,6 +282,7 @@ async def stream_query(
         cursor = conn.cursor()
         cursor.execute(query)
 
+        all_results = []
         total_rows = 0
         while True:
             batch = cursor.fetchmany(batch_size)
@@ -185,13 +290,14 @@ async def stream_query(
                 break
             total_rows += len(batch)
             await ctx.debug(f"Fetched {total_rows} rows")
-            yield str(batch)
+            all_results.extend(batch)
 
-        await ctx.info(f"Query streaming completed, total rows: {total_rows}")
+        await ctx.info(f"Query completed, total rows: {total_rows}")
+        return str(all_results)
     except Exception as e:
-        error_msg = f"Error streaming query: {str(e)}"
+        error_msg = f"Error executing query: {str(e)}"
         await ctx.error(error_msg)
-        yield error_msg
+        return error_msg
     finally:
         if cursor:
             cursor.close()
@@ -216,11 +322,10 @@ async def copy_data(
     """
     await ctx.info(f"Copying {len(data)} rows to table: {table}")
 
-    # Get connection manager from context
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    # Get or create connection manager
+    manager = await get_or_create_manager(ctx)
     if not manager:
-        await ctx.error("No database connection manager available")
-        return "Error: No database connection manager available"
+        return "Error: Failed to initialize database connection. Check configuration."
 
     # Check operation permissions
     if not manager.is_operation_allowed(schema, OperationType.INSERT):
@@ -277,10 +382,10 @@ async def get_table_structure(
     """
     await ctx.info(f"Getting structure for table: {schema}.{table_name}")
 
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    # Get or create connection manager
+    manager = await get_or_create_manager(ctx)
     if not manager:
-        await ctx.error("No database connection manager available")
-        return "Error: No database connection manager available"
+        return "Error: Failed to initialize database connection. Check configuration."
 
     query = """
     SELECT
@@ -370,10 +475,10 @@ async def list_indexes(
     """
     await ctx.info(f"Listing indexes for table: {schema}.{table_name}")
 
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    # Get or create connection manager
+    manager = await get_or_create_manager(ctx)
     if not manager:
-        await ctx.error("No database connection manager available")
-        return "Error: No database connection manager available"
+        return "Error: Failed to initialize database connection. Check configuration."
 
     query = """
     SELECT
@@ -431,10 +536,10 @@ async def list_views(
     """
     await ctx.info(f"Listing views in schema: {schema}")
 
-    manager = ctx.request_context.lifespan_context.get("vertica_manager")
+    # Get or create connection manager
+    manager = await get_or_create_manager(ctx)
     if not manager:
-        await ctx.error("No database connection manager available")
-        return "Error: No database connection manager available"
+        return "Error: Failed to initialize database connection. Check configuration."
 
     query = """
     SELECT

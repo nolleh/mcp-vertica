@@ -1,8 +1,30 @@
 [project]
 name = "mcp-vertica"
-version = "0.1.3"
-description = "Vertica MCP using Fast MCP"
+dynamic = ["version"]
+description = "A Model Context Protocol (MCP) server for Vertica database with connection pooling, schema management, and security features"
+readme = "README.md"
 requires-python = ">=3.12"
+license = {text = "MIT"}
+keywords = ["mcp", "vertica", "database", "model-context-protocol", "llm", "ai"]
+authors = [
+    {name = "nolleh", email = "nolleh7707@gmail.com"}
+]
+maintainers = [
+    {name = "nolleh", email = "nolleh7707@gmail.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
 dependencies = [
     "vertica-python>=1.0.0",
     "click>=8.0.0",
@@ -10,13 +32,19 @@ dependencies = [
     "mcp[cli]"
 ]
 
-[[project.authors]]
-name = "nolleh"
-email = "nolleh7707@gmail.com"
+[project.urls]
+Homepage = "https://github.com/nolleh/mcp-vertica"
+Repository = "https://github.com/nolleh/mcp-vertica"
+Issues = "https://github.com/nolleh/mcp-vertica/issues"
+Changelog = "https://github.com/nolleh/mcp-vertica/releases"
+Documentation = "https://github.com/nolleh/mcp-vertica#readme"
+
+[project.scripts]
+mcp-vertica = "mcp_vertica:cli"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[project.scripts]
-mcp-vertica = "mcp_vertica:cli"
+[tool.hatch.version]
+path = "src/mcp_vertica/__about__.py"

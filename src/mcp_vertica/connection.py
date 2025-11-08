@@ -9,7 +9,7 @@ from enum import Enum, auto
 
 # Constants for environment variables
 VERTICA_HOST = "VERTICA_HOST"
-VERTICA_PORT = "VERTICA_PORT"
+VERTICA_PORT = "VERTICA_PORT"  # Vertica database port (e.g., 5433)
 VERTICA_DATABASE = "VERTICA_DATABASE"
 VERTICA_USER = "VERTICA_USER"
 VERTICA_PASSWORD = "VERTICA_PASSWORD"
@@ -75,12 +75,17 @@ class VerticaConfig:
                         schema_permissions[schema] = SchemaPermissions()
                     setattr(schema_permissions[schema], perm_type, value.strip().lower() == 'true')
 
+        password = password=os.getenv("VERTICA_PASSWORD", "")
+        if not password or not password.strip():
+            logging.warning("Empty password should be used only in local enviroment")
+            print("Empty password should be used only in local enviroment")
+
         return cls(
             host=os.getenv("VERTICA_HOST", "localhost"),
             port=int(os.getenv("VERTICA_PORT", "5433")),
             database=os.getenv("VERTICA_DATABASE", "VMart"),
-            user=os.getenv("VERTICA_USER", "newdbadmin"),
-            password=os.getenv("VERTICA_PASSWORD", "vertica"),
+            user=os.getenv("VERTICA_USER", "dbadmin"),
+            password=password,
             connection_limit=int(os.getenv("VERTICA_CONNECTION_LIMIT", "10")),
             ssl=os.getenv("VERTICA_SSL", "false").lower() == "true",
             ssl_reject_unauthorized=os.getenv("VERTICA_SSL_REJECT_UNAUTHORIZED", "true").lower() == "true",
@@ -97,9 +102,12 @@ class VerticaConnectionPool:
         self.pool: Queue = Queue(maxsize=config.connection_limit)
         self.active_connections = 0
         self.lock = threading.Lock()
+        self.initialized = False
         try:
             self._initialize_pool()
-        except:
+            self.initialized = True
+        except Exception as e:
+            logger.warning(f"Failed to initialize connection pool: {str(e)}")
             pass
 
     def _get_connection_config(self) -> Dict[str, Any]:
@@ -142,6 +150,9 @@ class VerticaConnectionPool:
 
     def get_connection(self) -> vertica_python.Connection:
         """Get a connection from the pool."""
+        if not self.initialized:
+            raise Exception("Connection pool not initialized. Please check your Vertica connection settings.")
+
         with self.lock:
             if self.active_connections >= self.config.connection_limit:
                 raise Exception("No available connections in the pool")
@@ -193,7 +204,7 @@ class VerticaConnectionManager:
     def get_connection(self) -> vertica_python.Connection:
         """Get a connection from the pool. Vertica does not support runtime database switching."""
         if not self.pool:
-            raise Exception("Connection pool not initialized")
+            raise Exception("Connection pool not initialized. Please configure Vertica connection settings.")
         conn = self.pool.get_connection()
         return conn
 
