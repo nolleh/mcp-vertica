@@ -1,7 +1,8 @@
 import os
 import logging
-from queue import Queue
+import socket
 import threading
+import time
 import vertica_python
 from typing import Dict, Any, Optional, Set
 from dataclasses import dataclass
@@ -96,19 +97,24 @@ class VerticaConfig:
             schema_permissions=schema_permissions
         )
 
+# Fail-fast / auto-reconnect tuning (seconds). A pooled socket can silently die
+# (VPN drop, laptop sleep); without these, a reused dead socket hangs for ~15 min
+# (kernel tcp_retries2) and blocks the whole server.
+CONNECT_TIMEOUT = float(os.getenv("VERTICA_CONNECT_TIMEOUT", "10"))
+VALIDATE_IDLE_AFTER = float(os.getenv("VERTICA_VALIDATE_IDLE_AFTER", "10"))
+PING_TIMEOUT = float(os.getenv("VERTICA_PING_TIMEOUT", "5"))
+TCP_DEAD_AFTER = int(os.getenv("VERTICA_TCP_DEAD_AFTER", "30"))
+
+
 class VerticaConnectionPool:
+    """Lazy pool: connections are opened on demand, idle ones are pinged before
+    reuse, and broken ones are dropped instead of being returned to the pool."""
+
     def __init__(self, config: VerticaConfig):
         self.config = config
-        self.pool: Queue = Queue(maxsize=config.connection_limit)
+        self.idle: list = []  # [(conn, last_used_monotonic)]
         self.active_connections = 0
         self.lock = threading.Lock()
-        self.initialized = False
-        try:
-            self._initialize_pool()
-            self.initialized = True
-        except Exception as e:
-            logger.warning(f"Failed to initialize connection pool: {str(e)}")
-            pass
 
     def _get_connection_config(self) -> Dict[str, Any]:
         """Get connection configuration with SSL settings if enabled."""
@@ -118,6 +124,7 @@ class VerticaConnectionPool:
             "database": self.config.database,
             "user": self.config.user,
             "password": self.config.password,
+            "connection_timeout": CONNECT_TIMEOUT,
         }
 
         if self.config.ssl:
@@ -135,58 +142,74 @@ class VerticaConnectionPool:
             safe_config["password"] = "********"
         return safe_config
 
-    def _initialize_pool(self):
-        """Initialize the connection pool with the specified number of connections."""
-        logger.info(
-            f"Initializing Vertica connection pool with {self.config.connection_limit} connections"
-        )
-        for _ in range(self.config.connection_limit):
+    def _connect(self) -> vertica_python.Connection:
+        conn = vertica_python.connect(**self._get_connection_config())
+        sock = conn._socket()
+        # vertica_python keeps connection_timeout as the socket timeout for every
+        # read; clear it so long-running queries are not cut off.
+        sock.settimeout(None)
+        # Detect a dead peer in ~TCP_DEAD_AFTER s instead of hours/minutes, without
+        # limiting query runtime (the server's kernel ACKs probes while it computes).
+        if hasattr(socket, "TCP_KEEPIDLE"):
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, max(1, TCP_DEAD_AFTER // 3))
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, max(1, TCP_DEAD_AFTER // 6))
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
+        if hasattr(socket, "TCP_USER_TIMEOUT"):
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_USER_TIMEOUT, TCP_DEAD_AFTER * 1000)
+        return conn
+
+    def _is_alive(self, conn: vertica_python.Connection) -> bool:
+        sock = conn._socket()
+        try:
+            sock.settimeout(PING_TIMEOUT)
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            cur.fetchall()
+            cur.close()
+            sock.settimeout(None)
+            return True
+        except Exception as e:
+            logger.warning(f"Discarding dead pooled connection: {e}")
             try:
-                conn = vertica_python.connect(**self._get_connection_config())
-                self.pool.put(conn)
-            except Exception as e:
-                logger.error(f"Failed to create connection: {str(e)}")
-                raise
+                conn.close()
+            except Exception:
+                pass
+            return False
 
     def get_connection(self) -> vertica_python.Connection:
-        """Get a connection from the pool."""
-        if not self.initialized:
-            raise Exception("Connection pool not initialized. Please check your Vertica connection settings.")
-
+        """Get a healthy connection: reuse a live idle one or open a new one."""
         with self.lock:
-            if self.active_connections >= self.config.connection_limit:
-                raise Exception("No available connections in the pool")
-
-            try:
-                conn = self.pool.get(timeout=5)  # 5 second timeout
+            while self.idle:
+                conn, last_used = self.idle.pop()
+                if conn.closed():
+                    continue
+                if time.monotonic() - last_used > VALIDATE_IDLE_AFTER and not self._is_alive(conn):
+                    continue
                 self.active_connections += 1
                 return conn
-            except Exception as e:
-                logger.error(f"Failed to get connection from pool: {str(e)}")
-                self._initialize_pool()
-                raise
+            if self.active_connections >= self.config.connection_limit:
+                raise Exception("No available connections in the pool")
+            conn = self._connect()  # raises fast (CONNECT_TIMEOUT) if the network is down
+            self.active_connections += 1
+            return conn
 
     def release_connection(self, conn: vertica_python.Connection):
-        """Release a connection back to the pool."""
+        """Return a connection to the pool, or drop it if it broke during use."""
         with self.lock:
-            try:
-                self.pool.put(conn)
-                self.active_connections -= 1
-            except Exception as e:
-                logger.error(f"Failed to release connection to pool: {str(e)}")
-                try:
-                    conn.close()
-                except:
-                    pass
+            self.active_connections -= 1
+            if conn.closed():  # vertica_python closes the socket on any I/O error
+                return
+            self.idle.append((conn, time.monotonic()))
 
     def close_all(self):
         """Close all connections in the pool."""
-        while not self.pool.empty():
-            try:
-                conn = self.pool.get_nowait()
-                conn.close()
-            except:
-                pass
+        with self.lock:
+            while self.idle:
+                conn, _ = self.idle.pop()
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
 class VerticaConnectionManager:
     def __init__(self):
